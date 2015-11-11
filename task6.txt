@@ -1,0 +1,261 @@
+CREATE OR REPLACE PROCEDURE TASKSIX (KVALUE IN INTEGER)   IS
+	Query_keyword dbms_sql.varchar2_table;
+	Query_keyword1 dbms_sql.varchar2_table;
+	Query_similarity dbms_sql.varchar2_table;
+	Query_count integer;
+	xtra_Query_keyword VARCHAR2(500);
+	Query_count1 integer;
+    Advertiser_new_balance dbms_sql.varchar2_table;
+    Advertiser_new_profit dbms_sql.varchar2_table;
+    Advertiser_click_count dbms_sql.varchar2_table;
+    Advertiser_total_count dbms_sql.varchar2_table;
+	Advertiser_ctc dbms_sql.varchar2_table;
+    Advertiser_new_budget dbms_sql.varchar2_table;
+	Advertiser_keyword dbms_sql.varchar2_table;
+	Advertiser_rank dbms_sql.varchar2_table;
+	Advertiser_similarity dbms_sql.varchar2_table;
+    Advertiser_new_profit_sort dbms_sql.varchar2_table;    
+	Advertiser_unique dbms_sql.varchar2_table;	
+	Advertiser_index dbms_sql.varchar2_table;	
+	Advertiser_keyword_count integer;
+	n_unique INTEGER :=0;
+	num_aid integer;
+	xtra_Kvalue integer;
+	xtra_no  number;
+	xtra_no1 number;
+	xtra_no2 number;
+	xtra_no3 number;
+    l_list   VARCHAR2(500);    
+    tokens tokenList := new tokenList();
+	xtra_tokens tokenList := new tokenList();
+	candidate_rank ranks_table:= new ranks_table();
+	candidate_advID advID_table:= new advID_table();		
+	
+    CURSOR queries_cursor IS 
+    SELECT qid,query 
+    FROM  Queries
+    WHERE qid >=1
+    order  by qid;
+    query_record queries_cursor%rowtype;
+    
+	CURSOR keywords_cursor IS 
+    SELECT advertiserId, keyword, bid 
+    FROM  Keywords 
+    WHERE advertiserId >=1;
+    keywords_record keywords_cursor%rowtype;	
+	
+	CURSOR advertisers_cursor IS 
+    SELECT advertiserId, budget, ctc
+    FROM  Advertisers 
+    WHERE advertiserId >=1;
+    advertisers_record advertisers_cursor%rowtype;		
+	
+BEGIN    	
+    FOR i in 1 .. 1 LOOP
+         DELETE FROM OUTSIX;
+    END LOOP;				
+	xtra_Kvalue:= KVALUE;
+    OPEN advertisers_cursor;    
+    LOOP
+        FETCH advertisers_cursor INTO advertisers_record;
+        IF advertisers_cursor%FOUND THEN		                         
+              Advertiser_ctc(advertisers_record.advertiserId) := (advertisers_record.ctc)*100;			  
+              Advertiser_new_balance(advertisers_record.advertiserId):= advertisers_record.budget;
+			  Advertiser_new_budget(advertisers_record.advertiserId):= advertisers_record.budget;
+			  Advertiser_click_count(advertisers_record.advertiserId):=0;
+              Advertiser_total_count(advertisers_record.advertiserId):=0;
+			  Advertiser_rank(advertisers_record.advertiserId):=0;   Advertiser_index(advertisers_record.advertiserId):=0;                    
+			  Advertiser_unique(advertisers_record.advertiserId):=0; Advertiser_new_profit(advertisers_record.advertiserId):= 0; 			  
+	    ELSE 
+        EXIT;        
+        END IF;		         	  
+    END LOOP;
+	CLOSE advertisers_cursor;	    
+	
+	            
+    OPEN queries_cursor;	
+    LOOP
+	    xtra_Kvalue:= KVALUE;
+		tokens := new tokenList();
+		xtra_tokens := new tokenList();
+		candidate_advID := new advID_table();
+		candidate_rank := new ranks_table();		
+		
+		FETCH queries_cursor INTO query_record;        
+		IF queries_cursor%FOUND THEN             						            					
+            l_list:= query_record.query;			
+			Query_count1:= 0;																
+			Query_count1 := 1+ LENGTH(l_list) - LENGTH(REPLACE(l_list, ' ', ''));
+            tokens.extend(Query_count1);			
+			FOR i in 1 .. Query_count1 LOOP		    
+				tokens(i) := new token_obj( regexp_substr(l_list,'[^ ]+',1,i));
+				query_keyword(i) := regexp_substr(l_list,'[^ ]+',1,i); 
+				query_keyword1(i) := regexp_substr(l_list,'[^ ]+',1,i);
+			END LOOP;					
+           	n_unique := 0;			
+	        FOR y in (select DISTINCT l.tok t from table(tokens) l) LOOP
+				n_unique := n_unique+1;
+	        END LOOP;
+			xtra_tokens.extend(n_unique);
+			Query_count := 0;
+			FOR z in (select DISTINCT l.tok t from table(tokens) l) LOOP			
+				Query_count := Query_count+1;				 
+				xtra_tokens(Query_count) := new token_obj(z.t);								
+			END LOOP; 
+			  
+			num_aid:=0;  
+			FOR x in (select l.tok  t,k.advertiserId aid,k.bid bid from table( xtra_tokens ) l, Keywords k where k.keyword=l.tok order by k.advertiserId) LOOP											 			    
+    			xtra_no:= Advertiser_new_profit(x.aid)+x.bid;
+				IF (Advertiser_new_profit(x.aid)<> -1) THEN	
+					IF (xtra_no<=Advertiser_new_balance(x.aid)) THEN
+					    IF (Advertiser_unique(x.aid)=0) THEN 
+							num_aid:= num_aid +1; Advertiser_index(num_aid):=x.aid; 
+							Advertiser_unique(x.aid):=1;		
+						END IF;		 
+						Advertiser_new_profit(x.aid):=xtra_no;
+					ELSE
+						Advertiser_new_profit(x.aid):= -1;	
+						IF (Advertiser_unique(x.aid)=1) THEN
+							num_aid:= num_aid -1;  
+						END IF;		
+					END IF;														
+				END IF;					  				  				
+			END LOOP;									 			 			 				
+			
+				
+			candidate_advID.extend(num_aid);			
+			candidate_rank.extend(num_aid);    
+			FOR i in 1 .. num_aid LOOP
+			       candidate_advID(i) := new token_obj1(Advertiser_index(i));				   				
+			END LOOP;
+			
+			FOR i in 1 .. num_aid LOOP
+			    Advertiser_keyword_count:=0;				
+				for x in (select l.aid  aid, k.keyword key from table( candidate_advID ) l, Keywords k where k.advertiserId=l.aid)  LOOP					
+					IF(x.aid=Advertiser_index(i)) THEN
+					  Advertiser_keyword_count:=Advertiser_keyword_count+1;
+					  advertiser_keyword(Advertiser_keyword_count):= x.key;
+					END IF;
+				END LOOP;
+				
+				xtra_no3:=0;														
+				FOR m in 1 .. Query_count1 LOOP
+					query_keyword1(m):= query_keyword(m);
+				END LOOP;									
+			
+				FOR m in 1 .. Query_count1 LOOP
+					xtra_no:=  0;
+					xtra_no2:= 0;
+					IF (query_keyword1(m)<> 'contaminated') THEN
+					   xtra_Query_keyword:=query_keyword1(m);
+					   query_keyword1(m):= 'contaminated';
+					   xtra_no:=xtra_no+1; 		
+					   FOR n in m+1 .. Query_count1 LOOP
+							IF (query_keyword1(n) = xtra_Query_keyword) THEN 
+							   xtra_no:= xtra_no + 1;
+							   query_keyword1(n):= 'contaminated';
+							END IF;   
+					   END LOOP;	
+					   FOR n in 1 .. Advertiser_keyword_count LOOP
+							IF (xtra_Query_keyword = advertiser_keyword(n)) THEN 
+							   xtra_no2:= xtra_no2 + 1;
+							   advertiser_keyword(n):= 'contaminated';
+							END IF;
+					   END LOOP;
+					   xtra_no3:= xtra_no3+1;
+					   Query_similarity(xtra_no3):= xtra_no;
+					   Advertiser_similarity(xtra_no3):= xtra_no2;   						      					   	
+					END IF;
+				END LOOP;
+				
+				FOR m in 1 .. Advertiser_keyword_count LOOP
+					xtra_no:= 0;
+					xtra_no2:= 0;
+					IF (advertiser_keyword(m)<> 'contaminated') THEN
+					   xtra_Query_keyword:=advertiser_keyword(m);
+					   advertiser_keyword(m):= 'contaminated';
+					   xtra_no2:=xtra_no2+1; 
+					   FOR n in m+1 .. Advertiser_keyword_count LOOP
+							IF (advertiser_keyword(n) = xtra_Query_keyword) THEN 
+							   xtra_no2:= xtra_no2 + 1;
+							   advertiser_keyword(n):= 'contaminated';
+							END IF;
+					   END LOOP;
+					   xtra_no3:= xtra_no3+1;				        	
+					   Query_similarity(xtra_no3):= xtra_no;
+					   Advertiser_similarity(xtra_no3):= xtra_no2;   						      					  
+					END IF;                        						   						
+				END LOOP;
+				 
+				xtra_no:=0;
+				xtra_no1:=0;
+				xtra_no2:=0;
+				
+				FOR m in 1 .. xtra_no3 LOOP
+					xtra_no:= xtra_no +   Query_similarity(m) * Advertiser_similarity(m);   						      					
+					xtra_no1:= xtra_no1 +  Query_similarity(m)*Query_similarity(m);
+					xtra_no2:= xtra_no2 +  Advertiser_similarity(m)*Advertiser_similarity(m);						
+				END LOOP;																		
+            	xtra_no3:= (xtra_no)/(SQRT(xtra_no1)*SQRT(xtra_no2));	
+                xtra_no:= Advertiser_new_balance(Advertiser_index(i))/Advertiser_new_budget(Advertiser_index(i));
+				xtra_no1:= (1 - EXP((-1)*xtra_no)) *  Advertiser_new_profit(Advertiser_index(i));				
+				Advertiser_rank(Advertiser_index(i)) := xtra_no3*Advertiser_ctc(Advertiser_index(i))*xtra_no1; 												
+				candidate_rank(i) := new token_obj2(Advertiser_rank(Advertiser_index(i)),Advertiser_index(i));
+                Advertiser_new_profit_sort(i):=Advertiser_new_profit(Advertiser_index(i));				
+		    END LOOP;								
+		        							
+			IF (xtra_Kvalue > num_aid) THEN
+				xtra_Kvalue:= num_aid;
+			END IF;			
+
+	        xtra_no:=0;
+			FOR x in (select a.rank rank, a.aid aid 
+			          from table( candidate_rank ) a 
+					  order by a.rank desc) LOOP											 			    
+						xtra_no:= xtra_no+1;
+						Advertiser_rank(xtra_no):=x.rank;
+                        Advertiser_index(xtra_no):=x.aid;
+                        IF (xtra_no=xtra_Kvalue) THEN
+                             EXIT;
+                        END IF;							 
+			END LOOP;		
+			
+			FOR i in 1 .. xtra_Kvalue LOOP		
+				xtra_no:= Advertiser_index(i);
+				Advertiser_total_count(xtra_no) := Advertiser_total_count(xtra_no) +1;
+				xtra_no2:= Advertiser_total_count(xtra_no);
+				xtra_no3:= Advertiser_ctc(xtra_no);			
+				IF (xtra_no2<=xtra_no3) THEN
+					Advertiser_click_count(xtra_no):= Advertiser_click_count(xtra_no)+1;  				
+					xtra_no1:= -1;
+					xtra_no2:= Advertiser_new_profit(xtra_no);
+					FOR j in 1 .. num_aid LOOP
+					        xtra_no3:= Advertiser_new_profit_sort(j);
+							IF (xtra_no3 > xtra_no1 ) THEN
+								IF (xtra_no3 < xtra_no2) THEN
+									xtra_no1:= xtra_no3; 													
+								END IF;
+							END IF;
+					END LOOP;
+					IF (xtra_no1 <> -1) THEN
+						Advertiser_new_balance(xtra_no):= Advertiser_new_balance(xtra_no) - xtra_no1;							
+					ELSE
+						Advertiser_new_balance(xtra_no):= Advertiser_new_balance(xtra_no) - xtra_no2;
+					END IF;
+				END IF;								
+				IF (Advertiser_total_count(xtra_no)=100) THEN
+						Advertiser_total_count(xtra_no):= 0;
+						Advertiser_click_count(xtra_no):= 0;					
+				END IF;			
+				INSERT INTO OUTSIX VALUES (query_record.qid,  i  , Advertiser_index(i), Advertiser_new_balance(Advertiser_index(i)), Advertiser_new_budget(Advertiser_index(i)));				
+			END LOOP;
+			FOR x in (select l.tok  t,k.advertiserId aid,k.bid bid from table( xtra_tokens ) l, Keywords k where k.keyword=l.tok order by k.advertiserId) LOOP											 			    
+						Advertiser_new_profit(x.aid):= 0;
+						Advertiser_unique(x.aid):=0;			    					  				  				
+			END LOOP;
+		ELSE
+        EXIT;
+		END IF;         
+	END LOOP;
+	CLOSE queries_cursor;
+	END;

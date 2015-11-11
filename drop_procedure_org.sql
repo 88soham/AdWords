@@ -1,0 +1,13 @@
+DROP PROCEDURE TABLE_LOAD;
+DROP PROCEDURE TASKONE;
+DROP PROCEDURE TASKTWO;
+DROP PROCEDURE TASKTHREE;
+DROP PROCEDURE TASKFOUR;
+DROP PROCEDURE TASKFIVE;
+DROP PROCEDURE TASKSIX; 
+DROP table result_first;
+DROP table result_second;
+DROP table result_third;
+DROP table result_fourth;
+DROP table result_fifth;
+DROP table result_six;

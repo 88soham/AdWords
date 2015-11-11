@@ -1,0 +1,31 @@
+﻿Development Steps
+
+Java Code:
+1. In the java file, first, the database tables are created and all the data is inserted into the database.
+2. Then, the SQL procedures for each of the six tasks are called (using threads) to accomplish the six tasks parallelly.
+3. The procedures store the corresponding results in tables in the database. From the java code, these tables are read and corresponding output files are generated.  
+
+SQL Procedures: I have an SQL procedure for each task. 
+1. Every procedure has a main loop that runs for each query in the Queries table. Cursor variables are used inside procedures to access database tables.
+2. The query is first partitioned into tokens, and a table is created with these tokens.
+3. Next a JOIN operation is performed between this table and the Keywords table to extract all the advertisers that match the query.
+4. For each extracted advertiser, it is first checked if it has enough balance to pay for the advertisement. If so, there is a chance that it will be displayed, depending on its rank, that is yet to be calculated. Otherwise it is ignored.
+5. For all the advertisers, which pass the first check, the quality scores are calculated which are used in turn to calculate the final ranks, following the formulae, given in project.pdf.  
+6. The top k advertisers, based on this ranking, are inserted into the output table, which is later accessed by the java code.
+7. For these top k advertisers, depending on their ctc values, the balance is updated if required.
+
+
+Difficulties and Solutions
+
+1. SQL procedure is new to me, so I had some difficulties in the beginning to write an efficient code. Initially, I took all the relevant data into arrays, which made the code readable and easy to understand. But it made the code too slow. To avoid this, I used tables and JOIN operations wherever needed to reduce the search space whenever possible. This cut down the running time of the code by a considerable amount.
+2. Interfacing between the java code and the procedure was something to think about. I was facing a hard time in figuring out how to return a set of tuples from the procedure to the java code. I avoided this problem by storing the results in a table. This table is later accessed from the java file and the output file is generated.
+3. To make the code run faster, I used threads in java and called all the six tasks parallelly. This improved the running time tremendously.
+4. Similarity calculation, balance updates and ctc checks were crucial steps in this project since they affect the final output directly. Much time and effort were spent to ensure that these work correctly.
+5. There were many other minute details in the project specification, that were taken under consideration for correct execution.
+
+
+What I learnt from this project?
+This is the first time I have implemented a real-time database system and I enjoyed it thoroughly. SQL procedure is a new thing that I have used here. It provided hands-on experience in populating a database from scratch and building a real-time ad-search engine on it. We use search-engines day-in day-out without giving much thought to how it actually works at the back-end. This project gave some flavor of it.
+
+
+***NOTE*** I could not test the project properly on thunder due to immense load on the server. However it is running perfectly on my laptop in a local database on the sample files provided. Also, I have populated the database manually, and could not test sqlldr on thunder. I would highly appreciate if  you can allow me to give a demo on my laptop- thanks!
